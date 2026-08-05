@@ -9,13 +9,13 @@
             <!-- Email Address -->
             <flux:input
                 name="email"
-                :label="__('Correo electrónico')"
+                :label="__('Correo electrónico o nombre de usuario')"
                 :value="old('email')"
-                type="email"
+                type="text"
                 required
                 autofocus
-                autocomplete="email"
-                placeholder="email@ejemplo.com"
+                autocomplete="username"
+                placeholder="usuario o email@ejemplo.com"
             />
 
             <!-- Password -->
@@ -43,9 +43,5 @@
             </div>
         </form>
 
-       <!-- <div class="space-x-1 text-sm text-center rtl:space-x-reverse text-zinc-600 dark:text-zinc-400">
-            <span>{ __('Don\'t have an account?') }</span>
-            <flux:link :href="route('register')" wire:navigate>{ __('Sign up') }}</flux:link>
-        </div>--
     </div>
 </x-layouts::auth>
