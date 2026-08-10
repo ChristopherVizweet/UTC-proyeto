@@ -126,6 +126,12 @@ class SubjectController extends Controller
 
     public function destroy(Subject $subject): RedirectResponse
     {
+        if ($subject->teachingAssignments()->exists()) {
+            return redirect()
+                ->route('subjects.index')
+                ->with('error', 'No se puede eliminar la materia porque tiene asignaciones docentes registradas.');
+        }
+
         $subject->delete();
 
         return redirect()

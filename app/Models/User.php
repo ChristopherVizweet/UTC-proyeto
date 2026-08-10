@@ -7,6 +7,9 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
@@ -15,9 +18,6 @@ use Laravel\Fortify\Contracts\PasskeyUser;
 use Laravel\Fortify\PasskeyAuthenticatable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 use Spatie\Permission\Traits\HasRoles;
-use Illuminate\Database\Eloquent\Relations\HasOne;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
-use Illuminate\Database\Eloquent\Relations\HasMany; 
 
 /**
  * @property int $id
@@ -33,12 +33,12 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property Carbon|null $updated_at
  */
 #[Fillable(['name', 'email', 'password', 'apellidoPaterno',
-'apellidoMaterno', 'username','photo_path','birth_date'])]
+    'apellidoMaterno', 'username', 'photo_path', 'birth_date'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable implements PasskeyUser
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable,HasRoles, PasskeyAuthenticatable, TwoFactorAuthenticatable;
+    use HasFactory, HasRoles,Notifiable, PasskeyAuthenticatable, TwoFactorAuthenticatable;
 
     /**
      * Get the attributes that should be cast.
@@ -65,63 +65,85 @@ class User extends Authenticatable implements PasskeyUser
             ? Str::substr($initials, 0, 1).Str::substr($initials, -1)
             : $initials;
     }
+
     public function address(): HasOne
-{
-    return $this->hasOne(Address::class);
-}
+    {
+        return $this->hasOne(Address::class);
+    }
 
-public function studentProfile(): HasOne
-{
-    return $this->hasOne(StudentProfile::class);
-}
+    public function studentProfile(): HasOne
+    {
+        return $this->hasOne(StudentProfile::class);
+    }
 
-public function teacherProfile(): HasOne
-{
-    return $this->hasOne(TeacherProfile::class);
-}
-public function enrollments(): HasMany
-{
-    return $this->hasMany(
-        Enrollment::class,
-        'student_id'
-    );
-}
+    public function teacherProfile(): HasOne
+    {
+        return $this->hasOne(TeacherProfile::class);
+    }
 
-public function studentGroups(): BelongsToMany
-{
-    return $this->belongsToMany(
-        SchoolGroup::class,
-        'enrollments',
-        'student_id',
-        'school_group_id'
-    )
-        ->withPivot([
-            'fecha_inscripcion',
-            'estado_inscripcion',
-        ])
-        ->withTimestamps();
-}
+    public function enrollments(): HasMany
+    {
+        return $this->hasMany(
+            Enrollment::class,
+            'student_id'
+        );
+    }
 
-public function teachingAssignments(): HasMany
-{
-    return $this->hasMany(
-        TeachingAssignment::class,
-        'teacher_id'
-    );
-}
+    public function studentGroups(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            SchoolGroup::class,
+            'enrollments',
+            'student_id',
+            'school_group_id'
+        )
+            ->withPivot([
+                'fecha_inscripcion',
+                'estado_inscripcion',
+            ])
+            ->withTimestamps();
+    }
 
-public function teacherGroups(): BelongsToMany
-{
-    return $this->belongsToMany(
-        SchoolGroup::class,
-        'teaching_assignments',
-        'teacher_id',
-        'school_group_id'
-    )
-        ->withPivot([
-            'subject_id',
-            'is_active',
-        ])
-        ->withTimestamps();
-}
+    public function teachingAssignments(): HasMany
+    {
+        return $this->hasMany(
+            TeachingAssignment::class,
+            'teacher_id'
+        );
+    }
+
+    public function teacherGroups(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            SchoolGroup::class,
+            'teaching_assignments',
+            'teacher_id',
+            'school_group_id'
+        )
+            ->withPivot([
+                'subject_id',
+                'is_active',
+            ])
+            ->withTimestamps();
+    }
+
+    public function createdActivities(): HasMany
+    {
+        return $this->hasMany(Activity::class, 'created_by');
+    }
+
+    public function submissions(): HasMany
+    {
+        return $this->hasMany(Submission::class, 'student_id');
+    }
+
+    public function gradedSubmissions(): HasMany
+    {
+        return $this->hasMany(Submission::class, 'graded_by');
+    }
+
+    public function activityAttempts(): HasMany
+    {
+        return $this->hasMany(ActivityAttempt::class, 'student_id');
+    }
 }

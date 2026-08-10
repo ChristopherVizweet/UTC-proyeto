@@ -218,6 +218,30 @@ class UserController extends Controller
                 );
         }
 
+        if ($user->submissions()->exists()) {
+            return redirect()
+                ->route('users.index')
+                ->with('error', 'No se puede eliminar al estudiante porque tiene entregas registradas.');
+        }
+
+        if ($user->activityAttempts()->exists()) {
+            return redirect()
+                ->route('users.index')
+                ->with('error', 'No se puede eliminar al estudiante porque tiene intentos de actividades registrados.');
+        }
+
+        if ($user->createdActivities()->exists()) {
+            return redirect()
+                ->route('users.index')
+                ->with('error', 'No se puede eliminar al usuario porque creó actividades.');
+        }
+
+        if ($user->teachingAssignments()->whereHas('activities')->exists()) {
+            return redirect()
+                ->route('users.index')
+                ->with('error', 'No se puede eliminar al docente porque sus asignaciones tienen actividades.');
+        }
+
         $photoPath = $user->photo_path;
 
         DB::transaction(function () use ($user) {
@@ -411,20 +435,13 @@ class UserController extends Controller
         $user->address()->updateOrCreate(
             ['user_id' => $user->id],
             [
-                'calle_usuario' =>
-                    $validated['calle_usuario'],
-                'colonia_usuario' =>
-                    $validated['colonia_usuario'],
-                'exterior_usuario' =>
-                    $validated['exterior_usuario'],
-                'interior_usuario' =>
-                    $validated['interior_usuario'] ?? null,
-                'municipio_usuario' =>
-                    $validated['municipio_usuario'],
-                'estado_usuario' =>
-                    $validated['estado_usuario'],
-                'cp_usuario' =>
-                    $validated['cp_usuario'],
+                'calle_usuario' => $validated['calle_usuario'],
+                'colonia_usuario' => $validated['colonia_usuario'],
+                'exterior_usuario' => $validated['exterior_usuario'],
+                'interior_usuario' => $validated['interior_usuario'] ?? null,
+                'municipio_usuario' => $validated['municipio_usuario'],
+                'estado_usuario' => $validated['estado_usuario'],
+                'cp_usuario' => $validated['cp_usuario'],
             ]
         );
     }
@@ -437,14 +454,10 @@ class UserController extends Controller
             $user->studentProfile()->updateOrCreate(
                 ['user_id' => $user->id],
                 [
-                    'nombre_tutor' =>
-                        $validated['nombre_tutor'],
-                    'parentesco_tutor' =>
-                        $validated['parentesco_tutor'],
-                    'telefono_tutor' =>
-                        $validated['telefono_tutor'],
-                    'telefonoSecundario_tutor' =>
-                        $validated['telefonoSecundario_tutor']
+                    'nombre_tutor' => $validated['nombre_tutor'],
+                    'parentesco_tutor' => $validated['parentesco_tutor'],
+                    'telefono_tutor' => $validated['telefono_tutor'],
+                    'telefonoSecundario_tutor' => $validated['telefonoSecundario_tutor']
                             ?? null,
                 ]
             );
@@ -458,12 +471,9 @@ class UserController extends Controller
             $user->teacherProfile()->updateOrCreate(
                 ['user_id' => $user->id],
                 [
-                    'telefono_profesor' =>
-                        $validated['telefono_profesor'],
-                    'nivelEducativo_profesor' =>
-                        $validated['nivelEducativo_profesor'],
-                    'cedula_profesor' =>
-                        $validated['cedula_profesor'],
+                    'telefono_profesor' => $validated['telefono_profesor'],
+                    'nivelEducativo_profesor' => $validated['nivelEducativo_profesor'],
+                    'cedula_profesor' => $validated['cedula_profesor'],
                 ]
             );
 

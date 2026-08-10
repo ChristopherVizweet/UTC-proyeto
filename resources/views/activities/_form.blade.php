@@ -1,0 +1,196 @@
+@php
+    $savedConfiguration = $activity?->content?->configuracion ?? [];
+    $initialPairs = old('pairs', $savedConfiguration['pairs'] ?? [
+        ['left' => '', 'right' => ''],
+        ['left' => '', 'right' => ''],
+    ]);
+    $initialWords = old('words', collect($savedConfiguration['words'] ?? [])->map(fn ($word) => ['text' => $word['original']])->all());
+    while (count($initialWords) < 3) {
+        $initialWords[] = ['text' => ''];
+    }
+@endphp
+
+<div
+    class="space-y-5"
+    x-data="{
+        activityType: @js(old('tipo', $activity?->tipo ?? 'tarea')),
+        pairs: @js($initialPairs),
+        words: @js($initialWords),
+        addPair() {
+            if (this.pairs.length < 20) this.pairs.push({ left: '', right: '' });
+        },
+        removePair(index) {
+            if (this.pairs.length > 2) this.pairs.splice(index, 1);
+        },
+        addWord() {
+            if (this.words.length < 20) this.words.push({ text: '' });
+        },
+        removeWord(index) {
+            if (this.words.length > 3) this.words.splice(index, 1);
+        },
+    }"
+>
+    <div>
+        <label for="teaching_assignment_id" class="mb-1 block text-sm font-medium dark:text-zinc-300">Asignación docente</label>
+        <select id="teaching_assignment_id" name="teaching_assignment_id" required class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white">
+            <option value="">Selecciona una asignación</option>
+            @foreach ($teachingAssignments as $assignment)
+                <option value="{{ $assignment->id }}" @selected(old('teaching_assignment_id', $activity?->teaching_assignment_id) == $assignment->id)>
+                    {{ $assignment->subject?->nombre_materia }} — {{ $assignment->schoolGroup?->schoolGrade?->nombre_grado }} {{ $assignment->schoolGroup?->nombre_grupo }} — {{ $assignment->teacher?->name }}
+                </option>
+            @endforeach
+        </select>
+        @error('teaching_assignment_id')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
+    </div>
+
+    <div>
+        <label for="titulo" class="mb-1 block text-sm font-medium dark:text-zinc-300">Título</label>
+        <input id="titulo" name="titulo" value="{{ old('titulo', $activity?->titulo) }}" required maxlength="255" class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white">
+        @error('titulo')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
+    </div>
+
+    <div class="grid gap-5 md:grid-cols-2">
+        <div>
+            <label for="descripcion" class="mb-1 block text-sm font-medium dark:text-zinc-300">Descripción</label>
+            <textarea id="descripcion" name="descripcion" rows="4" class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white">{{ old('descripcion', $activity?->descripcion) }}</textarea>
+            @error('descripcion')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
+        </div>
+        <div>
+            <label for="instrucciones" class="mb-1 block text-sm font-medium dark:text-zinc-300">Instrucciones</label>
+            <textarea id="instrucciones" name="instrucciones" rows="4" class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white">{{ old('instrucciones', $activity?->instrucciones) }}</textarea>
+            @error('instrucciones')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
+        </div>
+    </div>
+
+    <div class="grid gap-5 md:grid-cols-3">
+        <div>
+            <label for="tipo" class="mb-1 block text-sm font-medium dark:text-zinc-300">Tipo</label>
+            <select id="tipo" name="tipo" x-model="activityType" required class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white">
+                @foreach (['tarea' => 'Tarea', 'archivo' => 'Archivo', 'cuestionario' => 'Cuestionario', 'matematicas' => 'Matemáticas', 'sopa_letras' => 'Sopa de letras', 'relacion_columnas' => 'Relación de columnas'] as $value => $label)
+                    <option value="{{ $value }}" @selected(old('tipo', $activity?->tipo ?? 'tarea') === $value)>{{ $label }}</option>
+                @endforeach
+            </select>
+            @error('tipo')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
+        </div>
+        <div>
+            <label for="puntaje_maximo" class="mb-1 block text-sm font-medium dark:text-zinc-300">Puntaje máximo</label>
+            <input id="puntaje_maximo" name="puntaje_maximo" type="number" min="0.01" step="0.01" value="{{ old('puntaje_maximo', $activity?->puntaje_maximo ?? 10) }}" required class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white">
+            @error('puntaje_maximo')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
+        </div>
+        <div>
+            <label for="estado" class="mb-1 block text-sm font-medium dark:text-zinc-300">Estado</label>
+            <select id="estado" name="estado" required class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white">
+                @foreach (['borrador' => 'Borrador', 'publicada' => 'Publicada', 'cerrada' => 'Cerrada'] as $value => $label)
+                    <option value="{{ $value }}" @selected(old('estado', $activity?->estado ?? 'borrador') === $value)>{{ $label }}</option>
+                @endforeach
+            </select>
+            @error('estado')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
+        </div>
+    </div>
+
+    <section x-show="activityType === 'relacion_columnas'" x-cloak class="space-y-4 rounded-xl border border-blue-200 bg-blue-50 p-5 dark:border-blue-900 dark:bg-blue-950/30">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+                <h2 class="font-bold text-blue-900 dark:text-blue-100">Relaciones de conceptos</h2>
+                <p class="text-sm text-blue-700 dark:text-blue-300">Agrega entre 2 y 20 parejas. Los identificadores se generan en el servidor.</p>
+            </div>
+            <button type="button" x-on:click="addPair" x-bind:disabled="pairs.length >= 20" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">Agregar relación</button>
+        </div>
+
+        <div class="space-y-3">
+            <template x-for="(pair, index) in pairs" x-bind:key="index">
+                <div class="grid gap-3 rounded-lg border border-blue-200 bg-white p-3 md:grid-cols-[1fr_1fr_auto] dark:border-blue-900 dark:bg-zinc-900">
+                    <div>
+                        <label x-bind:for="`pair-left-${index}`" class="mb-1 block text-sm font-medium dark:text-zinc-300">Concepto</label>
+                        <input x-bind:id="`pair-left-${index}`" x-bind:name="`pairs[${index}][left]`" x-model="pair.left" maxlength="255" x-bind:required="activityType === 'relacion_columnas'" x-bind:disabled="activityType !== 'relacion_columnas'" class="w-full rounded-lg border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white">
+                    </div>
+                    <div>
+                        <label x-bind:for="`pair-right-${index}`" class="mb-1 block text-sm font-medium dark:text-zinc-300">Respuesta</label>
+                        <input x-bind:id="`pair-right-${index}`" x-bind:name="`pairs[${index}][right]`" x-model="pair.right" maxlength="255" x-bind:required="activityType === 'relacion_columnas'" x-bind:disabled="activityType !== 'relacion_columnas'" class="w-full rounded-lg border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white">
+                    </div>
+                    <button type="button" x-on:click="removePair(index)" x-bind:disabled="pairs.length <= 2" class="self-end rounded-lg bg-red-100 px-3 py-2 text-sm font-semibold text-red-700 disabled:opacity-40">Eliminar</button>
+                </div>
+            </template>
+        </div>
+        @error('pairs')<p class="text-sm text-red-600">{{ $message }}</p>@enderror
+        @error('pairs.*.left')<p class="text-sm text-red-600">{{ $message }}</p>@enderror
+        @error('pairs.*.right')<p class="text-sm text-red-600">{{ $message }}</p>@enderror
+
+        <div class="grid gap-4 md:grid-cols-3">
+            <div>
+                <label for="max_attempts" class="mb-1 block text-sm font-medium dark:text-zinc-300">Intentos máximos</label>
+                <input id="max_attempts" name="max_attempts" type="number" min="1" max="10" value="{{ old('max_attempts', $savedConfiguration['max_attempts'] ?? 2) }}" x-bind:required="activityType === 'relacion_columnas'" x-bind:disabled="activityType !== 'relacion_columnas'" class="w-full rounded-lg border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white">
+                @error('max_attempts')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
+            </div>
+            <label class="flex items-center gap-3 text-sm dark:text-zinc-300"><input type="hidden" name="shuffle_right_column" value="0" x-bind:disabled="activityType !== 'relacion_columnas'"><input type="checkbox" name="shuffle_right_column" value="1" x-bind:disabled="activityType !== 'relacion_columnas'" @checked(old('shuffle_right_column', $savedConfiguration['shuffle_right_column'] ?? true)) class="rounded border-zinc-300">Mezclar columna derecha</label>
+            <label class="flex items-center gap-3 text-sm dark:text-zinc-300"><input type="hidden" name="show_result_immediately" value="0" x-bind:disabled="activityType !== 'relacion_columnas'"><input type="checkbox" name="show_result_immediately" value="1" x-bind:disabled="activityType !== 'relacion_columnas'" @checked(old('show_result_immediately', $savedConfiguration['show_result_immediately'] ?? true)) class="rounded border-zinc-300">Mostrar resultado inmediatamente</label>
+        </div>
+    </section>
+
+    <section x-show="activityType === 'sopa_letras'" x-cloak class="space-y-5 rounded-xl border border-violet-200 bg-violet-50 p-5 dark:border-violet-900 dark:bg-violet-950/30">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <div><h2 class="font-bold text-violet-900 dark:text-violet-100">Palabras de la sopa</h2><p class="text-sm text-violet-700 dark:text-violet-300">Agrega entre 3 y 20 palabras. La cuadrícula se genera automáticamente al guardar.</p></div>
+            <button type="button" x-on:click="addWord" x-bind:disabled="words.length >= 20" class="rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">Agregar palabra</button>
+        </div>
+        <div class="grid gap-3 sm:grid-cols-2">
+            <template x-for="(word, index) in words" x-bind:key="index">
+                <div class="flex gap-2 rounded-lg border border-violet-200 bg-white p-3 dark:border-violet-900 dark:bg-zinc-900">
+                    <div class="min-w-0 flex-1">
+                        <label x-bind:for="`word-${index}`" class="mb-1 block text-sm font-medium dark:text-zinc-300" x-text="`Palabra ${index + 1}`"></label>
+                        <input x-bind:id="`word-${index}`" x-bind:name="`words[${index}][text]`" x-model="word.text" maxlength="255" x-bind:required="activityType === 'sopa_letras'" x-bind:disabled="activityType !== 'sopa_letras'" class="w-full rounded-lg border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white">
+                    </div>
+                    <button type="button" x-on:click="removeWord(index)" x-bind:disabled="words.length <= 3" class="self-end rounded-lg bg-red-100 px-3 py-2 text-sm font-semibold text-red-700 disabled:opacity-40">Eliminar</button>
+                </div>
+            </template>
+        </div>
+        @error('words')<p class="text-sm text-red-600">{{ $message }}</p>@enderror
+        @error('words.*.text')<p class="text-sm text-red-600">{{ $message }}</p>@enderror
+
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div><label for="word_search_rows" class="mb-1 block text-sm font-medium dark:text-zinc-300">Filas</label><input id="word_search_rows" name="word_search_rows" type="number" min="8" max="20" value="{{ old('word_search_rows', $savedConfiguration['rows'] ?? 12) }}" x-bind:required="activityType === 'sopa_letras'" x-bind:disabled="activityType !== 'sopa_letras'" class="w-full rounded-lg border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white">@error('word_search_rows')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror</div>
+            <div><label for="word_search_columns" class="mb-1 block text-sm font-medium dark:text-zinc-300">Columnas</label><input id="word_search_columns" name="word_search_columns" type="number" min="8" max="20" value="{{ old('word_search_columns', $savedConfiguration['columns'] ?? 12) }}" x-bind:required="activityType === 'sopa_letras'" x-bind:disabled="activityType !== 'sopa_letras'" class="w-full rounded-lg border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white">@error('word_search_columns')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror</div>
+            <div><label for="word_search_max_attempts" class="mb-1 block text-sm font-medium dark:text-zinc-300">Intentos máximos</label><input id="word_search_max_attempts" name="max_attempts" type="number" min="1" max="10" value="{{ old('max_attempts', $savedConfiguration['max_attempts'] ?? 2) }}" x-bind:required="activityType === 'sopa_letras'" x-bind:disabled="activityType !== 'sopa_letras'" class="w-full rounded-lg border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white">@error('max_attempts')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror</div>
+            <label class="flex items-center gap-3 text-sm dark:text-zinc-300"><input type="hidden" name="allow_reverse" value="0" x-bind:disabled="activityType !== 'sopa_letras'"><input type="checkbox" name="allow_reverse" value="1" x-bind:disabled="activityType !== 'sopa_letras'" @checked(old('allow_reverse', $savedConfiguration['allow_reverse'] ?? false)) class="rounded border-zinc-300">Permitir palabras invertidas</label>
+        </div>
+
+        @php $selectedDirections = old('word_search_directions', $savedConfiguration['directions'] ?? ['horizontal', 'vertical', 'diagonal_down', 'diagonal_up']); @endphp
+        <fieldset><legend class="mb-2 text-sm font-medium dark:text-zinc-300">Direcciones permitidas</legend><div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            @foreach (['horizontal' => 'Horizontal', 'vertical' => 'Vertical', 'diagonal_down' => 'Diagonal descendente', 'diagonal_up' => 'Diagonal ascendente'] as $direction => $label)
+                <label class="flex items-center gap-2 text-sm dark:text-zinc-300"><input type="checkbox" name="word_search_directions[]" value="{{ $direction }}" x-bind:disabled="activityType !== 'sopa_letras'" @checked(in_array($direction, $selectedDirections, true)) class="rounded border-zinc-300">{{ $label }}</label>
+            @endforeach
+        </div></fieldset>
+        @error('word_search_directions')<p class="text-sm text-red-600">{{ $message }}</p>@enderror
+        <label class="flex items-center gap-3 text-sm dark:text-zinc-300"><input type="hidden" name="show_result_immediately" value="0" x-bind:disabled="activityType !== 'sopa_letras'"><input type="checkbox" name="show_result_immediately" value="1" x-bind:disabled="activityType !== 'sopa_letras'" @checked(old('show_result_immediately', $savedConfiguration['show_result_immediately'] ?? true)) class="rounded border-zinc-300">Mostrar puntuación inmediatamente al estudiante</label>
+    </section>
+
+    <div class="grid gap-5 md:grid-cols-2">
+        <div>
+            <label for="fecha_publicacion" class="mb-1 block text-sm font-medium dark:text-zinc-300">Fecha de publicación</label>
+            <input id="fecha_publicacion" name="fecha_publicacion" type="datetime-local" value="{{ old('fecha_publicacion', $activity?->fecha_publicacion?->format('Y-m-d\TH:i')) }}" class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white">
+            @error('fecha_publicacion')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
+        </div>
+        <div>
+            <label for="fecha_limite" class="mb-1 block text-sm font-medium dark:text-zinc-300">Fecha límite</label>
+            <input id="fecha_limite" name="fecha_limite" type="datetime-local" value="{{ old('fecha_limite', $activity?->fecha_limite?->format('Y-m-d\TH:i')) }}" class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white">
+            @error('fecha_limite')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
+        </div>
+    </div>
+
+    <div>
+        <label for="archivo" class="mb-1 block text-sm font-medium dark:text-zinc-300">Archivo adjunto</label>
+        <input id="archivo" name="archivo" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png,.webp,.txt" class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-white">
+        @if ($activity?->archivo_path)<p class="mt-1 text-xs text-zinc-500">Actual: {{ basename($activity->archivo_path) }}</p>@endif
+        @error('archivo')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
+    </div>
+
+    <label class="flex items-center gap-3 text-sm dark:text-zinc-300">
+        <input type="hidden" name="permite_entrega_tardia" value="0">
+        <input type="checkbox" name="permite_entrega_tardia" value="1" @checked(old('permite_entrega_tardia', $activity?->permite_entrega_tardia ?? false)) class="rounded border-zinc-300">
+        Permitir entregas después de la fecha límite
+    </label>
+
+    <div class="flex justify-end gap-3 border-t border-zinc-200 pt-5 dark:border-zinc-700">
+        <a href="{{ route('activities.index') }}" wire:navigate class="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-semibold dark:border-zinc-600 dark:text-zinc-300">Cancelar</a>
+        <button type="submit" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white">{{ $buttonText }}</button>
+    </div>
+</div>

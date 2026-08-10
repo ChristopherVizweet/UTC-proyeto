@@ -35,65 +35,75 @@
                     {{ __('Inicio') }}
                 </flux:sidebar.item>
 
-                {{-- Menú del estudiante --}}
-                @hasanyrole('estudiante|administrador')
-                estudiante
+                @role('estudiante')
                 <flux:sidebar.item
                     icon="book-open"
-                    href="#">
+                    :href="route('activities.index')"
+                    :current="request()->routeIs('activities.*')"
+                    wire:navigate>
                     {{ __('Actividades') }}
                 </flux:sidebar.item>
 
                 <flux:sidebar.item
                     icon="clipboard-document-check"
-                    href="#">
-                    {{ __('Mis tareas') }}
-                </flux:sidebar.item>
-
-                <flux:sidebar.item
-                    icon="chart-bar"
-                    href="#">
-                    {{ __('Mi progreso') }}
+                    :href="route('submissions.index')"
+                    :current="request()->routeIs('submissions.*') && ! request()->filled('estado')"
+                    wire:navigate>
+                    {{ __('Mis entregas') }}
                 </flux:sidebar.item>
 
                 <flux:sidebar.item
                     icon="academic-cap"
-                    href="#">
+                    :href="route('submissions.index', ['estado' => 'revisada'])"
+                    :current="request()->routeIs('submissions.index') && request('estado') === 'revisada'"
+                    wire:navigate>
                     {{ __('Calificaciones') }}
                 </flux:sidebar.item>
-                @endhasanyrole
+                @endrole
 
-                {{-- Menú del docente --}}
-                @hasanyrole('docente|administrador')
-                profesor
-                <flux:sidebar.item
-                    icon="users"
-                    href="#">
-                    {{ __('Mis grupos') }}
-                </flux:sidebar.item>
-
+                @role('docente')
                 <flux:sidebar.item
                     icon="book-open"
-                    href="#">
+                    :href="route('activities.index')"
+                    :current="request()->routeIs('activities.index', 'activities.show', 'activities.edit')"
+                    wire:navigate>
                     {{ __('Actividades') }}
                 </flux:sidebar.item>
 
                 <flux:sidebar.item
                     icon="plus-circle"
-                    href="#">
+                    :href="route('activities.create')"
+                    :current="request()->routeIs('activities.create')"
+                    wire:navigate>
                     {{ __('Crear actividad') }}
                 </flux:sidebar.item>
 
                 <flux:sidebar.item
                     icon="clipboard-document-check"
-                    href="#">
+                    :href="route('submissions.index')"
+                    :current="request()->routeIs('submissions.*')"
+                    wire:navigate>
                     {{ __('Calificar entregas') }}
                 </flux:sidebar.item>
                 @endrole
 
-                {{-- Menú del administrador --}}
                 @role('administrador')
-                administrador
+                <flux:sidebar.item
+                    icon="book-open"
+                    :href="route('activities.index')"
+                    :current="request()->routeIs('activities.*')"
+                    wire:navigate>
+                    {{ __('Actividades') }}
+                </flux:sidebar.item>
+
+                <flux:sidebar.item
+                    icon="clipboard-document-check"
+                    :href="route('submissions.index')"
+                    :current="request()->routeIs('submissions.*')"
+                    wire:navigate>
+                    {{ __('Entregas y calificaciones') }}
+                </flux:sidebar.item>
+
                 <flux:sidebar.item
                     icon="user-plus"
                     :href="route('enrollments.index')"

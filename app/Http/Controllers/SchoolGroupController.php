@@ -196,6 +196,18 @@ class SchoolGroupController extends Controller
     public function destroy(
         SchoolGroup $schoolGroup
     ): RedirectResponse {
+        if ($schoolGroup->enrollments()->exists()) {
+            return redirect()
+                ->route('school-groups.index')
+                ->with('error', 'No se puede eliminar el grupo porque tiene inscripciones registradas.');
+        }
+
+        if ($schoolGroup->teachingAssignments()->exists()) {
+            return redirect()
+                ->route('school-groups.index')
+                ->with('error', 'No se puede eliminar el grupo porque tiene asignaciones docentes registradas.');
+        }
+
         $schoolGroup->delete();
 
         return redirect()

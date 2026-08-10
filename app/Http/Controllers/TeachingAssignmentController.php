@@ -92,6 +92,12 @@ class TeachingAssignmentController extends Controller
     public function destroy(
         TeachingAssignment $teachingAssignment
     ): RedirectResponse {
+        if ($teachingAssignment->activities()->exists()) {
+            return redirect()
+                ->route('teaching-assignments.index')
+                ->with('error', 'No se puede eliminar la asignación porque tiene actividades registradas.');
+        }
+
         DB::transaction(fn () => $teachingAssignment->delete());
 
         return redirect()
