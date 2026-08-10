@@ -15,7 +15,9 @@ use Laravel\Fortify\Contracts\PasskeyUser;
 use Laravel\Fortify\PasskeyAuthenticatable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 use Spatie\Permission\Traits\HasRoles;
-use Illuminate\Database\Eloquent\Relations\HasOne; 
+use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany; 
 
 /**
  * @property int $id
@@ -76,5 +78,50 @@ public function studentProfile(): HasOne
 public function teacherProfile(): HasOne
 {
     return $this->hasOne(TeacherProfile::class);
+}
+public function enrollments(): HasMany
+{
+    return $this->hasMany(
+        Enrollment::class,
+        'student_id'
+    );
+}
+
+public function studentGroups(): BelongsToMany
+{
+    return $this->belongsToMany(
+        SchoolGroup::class,
+        'enrollments',
+        'student_id',
+        'school_group_id'
+    )
+        ->withPivot([
+            'fecha_inscripcion',
+            'estado_inscripcion',
+        ])
+        ->withTimestamps();
+}
+
+public function teachingAssignments(): HasMany
+{
+    return $this->hasMany(
+        TeachingAssignment::class,
+        'teacher_id'
+    );
+}
+
+public function teacherGroups(): BelongsToMany
+{
+    return $this->belongsToMany(
+        SchoolGroup::class,
+        'teaching_assignments',
+        'teacher_id',
+        'school_group_id'
+    )
+        ->withPivot([
+            'subject_id',
+            'is_active',
+        ])
+        ->withTimestamps();
 }
 }

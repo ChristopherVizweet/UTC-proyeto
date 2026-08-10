@@ -95,6 +95,22 @@
                 @role('administrador')
                 administrador
                 <flux:sidebar.item
+                    icon="user-plus"
+                    :href="route('enrollments.index')"
+                    :current="request()->routeIs('enrollments.*')"
+                    wire:navigate>
+                    {{ __('Inscripciones') }}
+                </flux:sidebar.item>
+
+                <flux:sidebar.item
+                    icon="clipboard-document-check"
+                    :href="route('teaching-assignments.index')"
+                    :current="request()->routeIs('teaching-assignments.*')"
+                    wire:navigate>
+                    {{ __('Asignaciones docentes') }}
+                </flux:sidebar.item>
+
+                <flux:sidebar.item
                     icon="users"
                     :href="route('users.index')"
                     :current="request()->routeIs('users.*')"

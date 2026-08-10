@@ -6,6 +6,8 @@ use App\Http\Controllers\SchoolGradeController;
 use App\Http\Controllers\SchoolGroupController;
 use App\Http\Controllers\SubjectController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\EnrollmentController;
+use App\Http\Controllers\TeachingAssignmentController;
 
 Route::view('/', 'welcome')->name('home');
 
@@ -40,6 +42,15 @@ Route::middleware([
         SubjectController::class
     );
     Route::resource('users', UserController::class);
+    Route::resource(
+    'enrollments',
+    EnrollmentController::class
+);
+
+Route::resource(
+    'teaching-assignments',
+    TeachingAssignmentController::class
+);
 });
 
 require __DIR__.'/settings.php';
