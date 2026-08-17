@@ -2,8 +2,11 @@
 
 use App\Http\Controllers\AcademicPeriodController;
 use App\Http\Controllers\ActivityController;
+use App\Http\Controllers\CrosswordController;
 use App\Http\Controllers\EnrollmentController;
+use App\Http\Controllers\HayAhiAyController;
 use App\Http\Controllers\InteractiveActivityController;
+use App\Http\Controllers\MemoryGameController;
 use App\Http\Controllers\NumericSequenceController;
 use App\Http\Controllers\SchoolGradeController;
 use App\Http\Controllers\SchoolGroupController;
@@ -24,6 +27,25 @@ Route::view('/dashboard', 'dashboard')
     ->name('dashboard');
 
 Route::middleware('auth')->group(function () {
+    Route::get('activities/{activity}/memory', [MemoryGameController::class, 'play'])->name('activities.memory.play');
+    Route::post('activities/{activity}/memory/attempts', [MemoryGameController::class, 'startAttempt'])->name('activities.memory.attempts.start');
+    Route::get('activities/{activity}/memory/attempts', [MemoryGameController::class, 'attempts'])->name('activities.memory.attempts.index');
+    Route::get('activities/{activity}/memory/images/{item}', [MemoryGameController::class, 'image'])->name('activities.memory.image');
+    Route::post('memory-attempts/{attempt}/submit', [MemoryGameController::class, 'submitAttempt'])->name('activities.memory.attempts.submit');
+    Route::get('memory-attempts/{attempt}/result', [MemoryGameController::class, 'result'])->name('activities.memory.attempts.result');
+
+    Route::get('activities/{activity}/hay-ahi-ay', [HayAhiAyController::class, 'play'])->name('activities.hay-ahi-ay.play');
+    Route::post('activities/{activity}/hay-ahi-ay/attempts', [HayAhiAyController::class, 'startAttempt'])->name('activities.hay-ahi-ay.attempts.start');
+    Route::get('activities/{activity}/hay-ahi-ay/attempts', [HayAhiAyController::class, 'attempts'])->name('activities.hay-ahi-ay.attempts.index');
+    Route::post('hay-ahi-ay-attempts/{attempt}/submit', [HayAhiAyController::class, 'submitAttempt'])->name('activities.hay-ahi-ay.attempts.submit');
+    Route::get('hay-ahi-ay-attempts/{attempt}/result', [HayAhiAyController::class, 'result'])->name('activities.hay-ahi-ay.attempts.result');
+
+    Route::get('activities/{activity}/crossword', [CrosswordController::class, 'play'])->name('activities.crossword.play');
+    Route::post('activities/{activity}/crossword/attempts', [CrosswordController::class, 'startAttempt'])->name('activities.crossword.attempts.start');
+    Route::get('activities/{activity}/crossword/attempts', [CrosswordController::class, 'attempts'])->name('activities.crossword.attempts.index');
+    Route::post('crossword-attempts/{attempt}/submit', [CrosswordController::class, 'submitAttempt'])->name('activities.crossword.attempts.submit');
+    Route::get('crossword-attempts/{attempt}/result', [CrosswordController::class, 'result'])->name('activities.crossword.attempts.result');
+
     Route::get('activities/{activity}/numeric-sequence', [NumericSequenceController::class, 'play'])
         ->name('activities.numeric-sequence.play');
     Route::post('activities/{activity}/numeric-sequence/attempts', [NumericSequenceController::class, 'startAttempt'])
@@ -59,6 +81,8 @@ Route::middleware('auth')->group(function () {
 
     Route::get('activities/{activity}/download', [ActivityController::class, 'download'])
         ->name('activities.download');
+    Route::get('activities/{activity}/image', [ActivityController::class, 'previewImage'])
+        ->name('activities.image');
     Route::resource('activities', ActivityController::class);
 
     Route::get('submissions/{submission}/grade', [SubmissionController::class, 'grade'])

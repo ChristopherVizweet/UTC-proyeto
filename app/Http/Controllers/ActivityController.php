@@ -6,6 +6,7 @@ use App\Models\Activity;
 use App\Models\SchoolGroup;
 use App\Models\Subject;
 use App\Models\TeachingAssignment;
+use App\Services\CrosswordGenerator;
 use App\Services\WordSearchGenerator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -24,7 +25,10 @@ use Throwable;
 
 class ActivityController extends Controller
 {
-    public function __construct(private readonly WordSearchGenerator $wordSearchGenerator) {}
+    public function __construct(
+        private readonly WordSearchGenerator $wordSearchGenerator,
+        private readonly CrosswordGenerator $crosswordGenerator
+    ) {}
 
     public function index(Request $request): View
     {
@@ -98,6 +102,23 @@ class ActivityController extends Controller
         Gate::authorize('create', Activity::class);
         $this->normalizeBooleans($request);
         $validated = $request->validate($this->rules($request));
+        $memoryImagePaths = [];
+
+        if ($validated['tipo'] === 'memorama') {
+            foreach (array_keys($validated['memory_items']) as $index) {
+                if (! $request->hasFile("memory_items.{$index}.image")) {
+                    throw ValidationException::withMessages(["memory_items.{$index}.image" => 'Cada tarjeta necesita una imagen.']);
+                }
+            }
+
+            foreach ($validated['memory_items'] as $index => &$item) {
+                $item['id'] = (string) Str::uuid();
+                $item['image_path'] = $request->file("memory_items.{$index}.image")->store('memory-cards', 'public');
+                $memoryImagePaths[] = $item['image_path'];
+            }
+            unset($item);
+        }
+
         $contentConfiguration = $this->contentConfiguration($validated);
 
         $validated['created_by'] = $request->user()->id;
@@ -113,6 +134,9 @@ class ActivityController extends Controller
             $validated['words'],
             $validated['sequence_values'],
             $validated['sequence_hidden_count'],
+            $validated['crossword_items'],
+            $validated['hay_ahi_ay_items'],
+            $validated['memory_items'],
             $validated['word_search_rows'],
             $validated['word_search_columns'],
             $validated['word_search_directions'],
@@ -134,9 +158,7 @@ class ActivityController extends Controller
                 return $activity;
             });
         } catch (Throwable $exception) {
-            if ($storedPath) {
-                Storage::disk('public')->delete($storedPath);
-            }
+            Storage::disk('public')->delete(array_filter([$storedPath, ...$memoryImagePaths]));
 
             throw $exception;
         }
@@ -184,10 +206,34 @@ class ActivityController extends Controller
         $this->normalizeBooleans($request);
         $validated = $request->validate($this->rules($request));
         $existingConfiguration = $activity->content()->value('configuracion');
+        $newMemoryPaths = [];
+        $oldMemoryPaths = collect($existingConfiguration['items'] ?? [])->pluck('image_path')->filter()->all();
+
+        if ($validated['tipo'] === 'memorama') {
+            $existingItems = collect($existingConfiguration['items'] ?? [])->keyBy('id');
+
+            foreach ($validated['memory_items'] as $index => &$item) {
+                $existingItem = $existingItems->get($item['id'] ?? '');
+                $item['id'] = $existingItem['id'] ?? (string) Str::uuid();
+                $item['image_path'] = $request->hasFile("memory_items.{$index}.image")
+                    ? $request->file("memory_items.{$index}.image")->store('memory-cards', 'public')
+                    : ($existingItem['image_path'] ?? null);
+
+                if ($request->hasFile("memory_items.{$index}.image")) {
+                    $newMemoryPaths[] = $item['image_path'];
+                }
+
+                if (! $item['image_path']) {
+                    throw ValidationException::withMessages(["memory_items.{$index}.image" => 'Cada tarjeta necesita una imagen.']);
+                }
+            }
+            unset($item);
+        }
+
         $contentConfiguration = $this->contentConfiguration($validated);
 
         if (
-            in_array($activity->tipo, ['relacion_columnas', 'sopa_letras', 'secuencia'], true)
+            in_array($activity->tipo, ['relacion_columnas', 'sopa_letras', 'secuencia', 'crucigrama', 'hay_ahi_ay', 'memorama'], true)
             && $activity->attempts()->exists()
             && (
                 $validated['tipo'] !== $activity->tipo
@@ -216,6 +262,9 @@ class ActivityController extends Controller
             $validated['words'],
             $validated['sequence_values'],
             $validated['sequence_hidden_count'],
+            $validated['crossword_items'],
+            $validated['hay_ahi_ay_items'],
+            $validated['memory_items'],
             $validated['word_search_rows'],
             $validated['word_search_columns'],
             $validated['word_search_directions'],
@@ -248,15 +297,20 @@ class ActivityController extends Controller
                 }
             });
         } catch (Throwable $exception) {
-            if ($newPath) {
-                Storage::disk('public')->delete($newPath);
-            }
+            Storage::disk('public')->delete(array_filter([$newPath, ...$newMemoryPaths]));
 
             throw $exception;
         }
 
         if ($newPath && $oldPath) {
             Storage::disk('public')->delete($oldPath);
+        }
+
+        if ($oldMemoryPaths !== []) {
+            $keptMemoryPaths = $validated['tipo'] === 'memorama'
+                ? collect($contentConfiguration['items'])->pluck('image_path')->all()
+                : [];
+            Storage::disk('public')->delete(array_values(array_diff($oldMemoryPaths, $keptMemoryPaths)));
         }
 
         return redirect()->route('activities.show', $activity)
@@ -266,8 +320,12 @@ class ActivityController extends Controller
     public function destroy(Activity $activity): RedirectResponse
     {
         Gate::authorize('delete', $activity);
-        $activity->load('submissions');
+        $activity->load(['submissions', 'content']);
         $paths = $activity->submissions->pluck('archivo_path')->filter()->all();
+
+        if ($activity->tipo === 'memorama') {
+            $paths = [...$paths, ...collect($activity->content?->configuracion['items'] ?? [])->pluck('image_path')->filter()->all()];
+        }
 
         if ($activity->archivo_path) {
             $paths[] = $activity->archivo_path;
@@ -293,6 +351,19 @@ class ActivityController extends Controller
         return Storage::disk('public')->download(
             $activity->archivo_path,
             basename($activity->archivo_path)
+        );
+    }
+
+    public function previewImage(Activity $activity): StreamedResponse
+    {
+        Gate::authorize('view', $activity);
+        abort_unless($activity->archivo_path && Storage::disk('public')->exists($activity->archivo_path), 404);
+        abort_unless(in_array(Str::lower(pathinfo($activity->archivo_path, PATHINFO_EXTENSION)), ['jpg', 'jpeg', 'png', 'webp'], true), 404);
+
+        return Storage::disk('public')->response(
+            $activity->archivo_path,
+            basename($activity->archivo_path),
+            ['Content-Disposition' => 'inline; filename="'.basename($activity->archivo_path).'"']
         );
     }
 
@@ -340,8 +411,18 @@ class ActivityController extends Controller
             'allow_reverse' => ['required_if:tipo,sopa_letras', 'boolean'],
             'sequence_values' => ['required_if:tipo,secuencia', 'nullable', 'string', 'max:1000'],
             'sequence_hidden_count' => ['required_if:tipo,secuencia', 'nullable', 'integer', 'between:1,29'],
-            'max_attempts' => ['required_if:tipo,relacion_columnas,sopa_letras,secuencia', 'integer', 'between:1,10'],
-            'show_result_immediately' => ['required_if:tipo,relacion_columnas,sopa_letras,secuencia', 'boolean'],
+            'crossword_items' => ['required_if:tipo,crucigrama', 'array', 'min:3', 'max:15'],
+            'crossword_items.*.answer' => ['required_if:tipo,crucigrama', 'string', 'max:255'],
+            'crossword_items.*.clue' => ['required_if:tipo,crucigrama', 'string', 'max:500'],
+            'hay_ahi_ay_items' => ['required_if:tipo,hay_ahi_ay', 'array', 'min:3', 'max:30'],
+            'hay_ahi_ay_items.*.sentence' => ['required_if:tipo,hay_ahi_ay', 'string', 'max:500', 'regex:/___/'],
+            'hay_ahi_ay_items.*.answer' => ['required_if:tipo,hay_ahi_ay', Rule::in(['hay', 'ahí', 'ay'])],
+            'memory_items' => ['required_if:tipo,memorama', 'array', 'min:3', 'max:12'],
+            'memory_items.*.id' => ['nullable', 'uuid'],
+            'memory_items.*.label' => ['required_if:tipo,memorama', 'string', 'max:100'],
+            'memory_items.*.image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+            'max_attempts' => ['required_if:tipo,relacion_columnas,sopa_letras,secuencia,crucigrama,hay_ahi_ay,memorama', 'integer', 'between:1,10'],
+            'show_result_immediately' => ['required_if:tipo,relacion_columnas,sopa_letras,secuencia,crucigrama,hay_ahi_ay,memorama', 'boolean'],
             'fecha_publicacion' => ['nullable', 'date'],
             'fecha_limite' => ['nullable', 'date', 'after_or_equal:fecha_publicacion'],
             'puntaje_maximo' => ['required', 'numeric', 'min:0.01'],
@@ -363,6 +444,34 @@ class ActivityController extends Controller
 
     private function contentConfiguration(array $validated): ?array
     {
+        if ($validated['tipo'] === 'memorama') {
+            return [
+                'items' => collect($validated['memory_items'])->map(fn (array $item): array => Arr::only($item, ['id', 'label', 'image_path']))->all(),
+                'max_attempts' => (int) $validated['max_attempts'],
+                'show_result_immediately' => (bool) $validated['show_result_immediately'],
+            ];
+        }
+
+        if ($validated['tipo'] === 'hay_ahi_ay') {
+            return [
+                'items' => collect($validated['hay_ahi_ay_items'])->map(fn (array $item): array => [
+                    'id' => (string) Str::uuid(),
+                    'sentence' => Str::squish($item['sentence']),
+                    'answer' => $item['answer'],
+                ])->all(),
+                'max_attempts' => (int) $validated['max_attempts'],
+                'show_result_immediately' => (bool) $validated['show_result_immediately'],
+            ];
+        }
+
+        if ($validated['tipo'] === 'crucigrama') {
+            return [
+                ...$this->crosswordGenerator->generate($validated['crossword_items']),
+                'max_attempts' => (int) $validated['max_attempts'],
+                'show_result_immediately' => (bool) $validated['show_result_immediately'],
+            ];
+        }
+
         if ($validated['tipo'] === 'secuencia') {
             $values = collect(explode(',', $validated['sequence_values']))
                 ->map(fn (string $value): string => trim($value));
@@ -461,6 +570,21 @@ class ActivityController extends Controller
             'secuencia' => [
                 'values' => $configuration['values'] ?? [],
                 'hidden_count' => $configuration['hidden_count'] ?? null,
+                'max_attempts' => $configuration['max_attempts'] ?? null,
+                'show_result_immediately' => $configuration['show_result_immediately'] ?? null,
+            ],
+            'crucigrama' => [
+                'entries' => collect($configuration['entries'] ?? [])->map(fn (array $entry): array => Arr::only($entry, ['answer', 'clue']))->all(),
+                'max_attempts' => $configuration['max_attempts'] ?? null,
+                'show_result_immediately' => $configuration['show_result_immediately'] ?? null,
+            ],
+            'hay_ahi_ay' => [
+                'items' => collect($configuration['items'] ?? [])->map(fn (array $item): array => Arr::only($item, ['sentence', 'answer']))->all(),
+                'max_attempts' => $configuration['max_attempts'] ?? null,
+                'show_result_immediately' => $configuration['show_result_immediately'] ?? null,
+            ],
+            'memorama' => [
+                'items' => collect($configuration['items'] ?? [])->map(fn (array $item): array => Arr::only($item, ['id', 'label', 'image_path']))->all(),
                 'max_attempts' => $configuration['max_attempts'] ?? null,
                 'show_result_immediately' => $configuration['show_result_immediately'] ?? null,
             ],

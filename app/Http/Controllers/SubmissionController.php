@@ -49,7 +49,7 @@ class SubmissionController extends Controller
     {
         Gate::authorize('create', Submission::class);
         $activity = Activity::findOrFail($request->integer('activity_id'));
-        abort_if(in_array($activity->tipo, ['relacion_columnas', 'sopa_letras', 'secuencia'], true), 404);
+        abort_if(in_array($activity->tipo, ['relacion_columnas', 'sopa_letras', 'secuencia', 'crucigrama', 'hay_ahi_ay', 'memorama'], true), 404);
         Gate::authorize('submit', $activity);
         $this->ensureAcceptingSubmissions($activity, false);
 
@@ -67,7 +67,7 @@ class SubmissionController extends Controller
         Gate::authorize('create', Submission::class);
         $validated = $request->validate($this->submissionRules());
         $activity = Activity::findOrFail($validated['activity_id']);
-        abort_if(in_array($activity->tipo, ['relacion_columnas', 'sopa_letras', 'secuencia'], true), 404);
+        abort_if(in_array($activity->tipo, ['relacion_columnas', 'sopa_letras', 'secuencia', 'crucigrama', 'hay_ahi_ay', 'memorama'], true), 404);
         Gate::authorize('submit', $activity);
         $isSubmit = $validated['action'] === 'submit';
         $this->ensureAcceptingSubmissions($activity, $isSubmit);
