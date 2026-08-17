@@ -13,7 +13,6 @@ class SubjectController extends Controller
     public function index(): View
     {
         $subjects = Subject::query()
-            ->orderBy('nombre_materia')
             ->paginate(10);
 
         return view('subjects.index', compact('subjects'));

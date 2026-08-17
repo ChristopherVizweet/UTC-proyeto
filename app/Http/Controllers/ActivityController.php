@@ -111,6 +111,8 @@ class ActivityController extends Controller
             $validated['archivo'],
             $validated['pairs'],
             $validated['words'],
+            $validated['sequence_values'],
+            $validated['sequence_hidden_count'],
             $validated['word_search_rows'],
             $validated['word_search_columns'],
             $validated['word_search_directions'],
@@ -185,7 +187,7 @@ class ActivityController extends Controller
         $contentConfiguration = $this->contentConfiguration($validated);
 
         if (
-            in_array($activity->tipo, ['relacion_columnas', 'sopa_letras'], true)
+            in_array($activity->tipo, ['relacion_columnas', 'sopa_letras', 'secuencia'], true)
             && $activity->attempts()->exists()
             && (
                 $validated['tipo'] !== $activity->tipo
@@ -212,6 +214,8 @@ class ActivityController extends Controller
             $validated['archivo'],
             $validated['pairs'],
             $validated['words'],
+            $validated['sequence_values'],
+            $validated['sequence_hidden_count'],
             $validated['word_search_rows'],
             $validated['word_search_columns'],
             $validated['word_search_directions'],
@@ -300,7 +304,7 @@ class ActivityController extends Controller
                 $query->where('is_active', true);
 
                 if ($activity) {
-                    $query->orWhereKey($activity->teaching_assignment_id);
+                    $query->orWhere('id', $activity->teaching_assignment_id);
                 }
             })
             ->when($request->user()->hasRole('docente'), fn (Builder $query) => $query
@@ -334,8 +338,10 @@ class ActivityController extends Controller
             'word_search_directions' => ['required_if:tipo,sopa_letras', 'array', 'min:1'],
             'word_search_directions.*' => ['string', 'distinct', Rule::in(['horizontal', 'vertical', 'diagonal_down', 'diagonal_up'])],
             'allow_reverse' => ['required_if:tipo,sopa_letras', 'boolean'],
-            'max_attempts' => ['required_if:tipo,relacion_columnas,sopa_letras', 'integer', 'between:1,10'],
-            'show_result_immediately' => ['required_if:tipo,relacion_columnas,sopa_letras', 'boolean'],
+            'sequence_values' => ['required_if:tipo,secuencia', 'nullable', 'string', 'max:1000'],
+            'sequence_hidden_count' => ['required_if:tipo,secuencia', 'nullable', 'integer', 'between:1,29'],
+            'max_attempts' => ['required_if:tipo,relacion_columnas,sopa_letras,secuencia', 'integer', 'between:1,10'],
+            'show_result_immediately' => ['required_if:tipo,relacion_columnas,sopa_letras,secuencia', 'boolean'],
             'fecha_publicacion' => ['nullable', 'date'],
             'fecha_limite' => ['nullable', 'date', 'after_or_equal:fecha_publicacion'],
             'puntaje_maximo' => ['required', 'numeric', 'min:0.01'],
@@ -357,6 +363,36 @@ class ActivityController extends Controller
 
     private function contentConfiguration(array $validated): ?array
     {
+        if ($validated['tipo'] === 'secuencia') {
+            $values = collect(explode(',', $validated['sequence_values']))
+                ->map(fn (string $value): string => trim($value));
+
+            if ($values->contains('') || $values->contains(fn (string $value): bool => ! is_numeric($value))) {
+                throw ValidationException::withMessages([
+                    'sequence_values' => 'Escribe únicamente números separados por comas.',
+                ]);
+            }
+
+            if ($values->count() < 4 || $values->count() > 30) {
+                throw ValidationException::withMessages([
+                    'sequence_values' => 'La secuencia debe contener entre 4 y 30 valores.',
+                ]);
+            }
+
+            if ((int) $validated['sequence_hidden_count'] >= $values->count() - 1) {
+                throw ValidationException::withMessages([
+                    'sequence_hidden_count' => 'Además del primero, debe quedar al menos otro valor visible para reconocer el patrón.',
+                ]);
+            }
+
+            return [
+                'values' => $values->values()->all(),
+                'hidden_count' => (int) $validated['sequence_hidden_count'],
+                'max_attempts' => (int) $validated['max_attempts'],
+                'show_result_immediately' => (bool) $validated['show_result_immediately'],
+            ];
+        }
+
         if ($validated['tipo'] === 'sopa_letras') {
             return [
                 ...$this->wordSearchGenerator->generate(
@@ -419,6 +455,12 @@ class ActivityController extends Controller
                 'columns' => $configuration['columns'] ?? null,
                 'directions' => $configuration['directions'] ?? [],
                 'allow_reverse' => $configuration['allow_reverse'] ?? null,
+                'max_attempts' => $configuration['max_attempts'] ?? null,
+                'show_result_immediately' => $configuration['show_result_immediately'] ?? null,
+            ],
+            'secuencia' => [
+                'values' => $configuration['values'] ?? [],
+                'hidden_count' => $configuration['hidden_count'] ?? null,
                 'max_attempts' => $configuration['max_attempts'] ?? null,
                 'show_result_immediately' => $configuration['show_result_immediately'] ?? null,
             ],

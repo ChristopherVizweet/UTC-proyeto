@@ -7,13 +7,12 @@ use App\Models\ActivityAttempt;
 use App\Services\AutomaticSubmissionGrader;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
-class WordSearchController extends Controller
+class NumericSequenceController extends Controller
 {
     public function __construct(private readonly AutomaticSubmissionGrader $submissionGrader) {}
 
@@ -29,7 +28,7 @@ class WordSearchController extends Controller
         $bestScore = $attempts->where('status', 'completado')->max('score');
         $showResults = (bool) $configuration['show_result_immediately'];
 
-        return view('word-search.play', compact(
+        return view('numeric-sequences.play', compact(
             'activity', 'attempts', 'maxAttempts', 'remainingAttempts', 'bestScore', 'showResults'
         ));
     }
@@ -59,20 +58,14 @@ class WordSearchController extends Controller
                 'activity_id' => $lockedActivity->id,
                 'student_id' => $request->user()->id,
                 'attempt_number' => ((int) $attempts->max('attempt_number')) + 1,
-                'answers' => [
-                    'selections' => [],
-                    'correct_word_ids' => [],
-                    'settings' => [
-                        'show_result_immediately' => (bool) $configuration['show_result_immediately'],
-                    ],
-                ],
+                'answers' => $this->attemptData($configuration),
                 'max_score' => $lockedActivity->puntaje_maximo,
                 'started_at' => now(),
                 'status' => 'iniciado',
             ]);
         });
 
-        return redirect()->route('activities.word-search.attempts.result', $attempt);
+        return redirect()->route('activities.numeric-sequence.attempts.result', $attempt);
     }
 
     public function submitAttempt(Request $request, ActivityAttempt $attempt): RedirectResponse
@@ -83,49 +76,32 @@ class WordSearchController extends Controller
             $lockedAttempt = ActivityAttempt::query()->whereKey($attempt->id)->lockForUpdate()->firstOrFail();
             Gate::authorize('submit', $lockedAttempt);
             $activity = $lockedAttempt->activity()->with('content')->firstOrFail();
-            $configuration = $this->authorizePlayable($request, $activity);
-            $maxSelections = count($configuration['words']);
+            $this->authorizePlayable($request, $activity);
+            $attemptData = $lockedAttempt->answers;
+            $hiddenIndices = collect($attemptData['hidden_indices'])->map(fn ($index): int => (int) $index);
 
             $validated = $request->validate([
-                'selections' => ['required', 'array', 'min:1', 'max:'.$maxSelections],
-                'selections.*.start_row' => ['required', 'integer', 'between:0,'.((int) $configuration['rows'] - 1)],
-                'selections.*.start_column' => ['required', 'integer', 'between:0,'.((int) $configuration['columns'] - 1)],
-                'selections.*.end_row' => ['required', 'integer', 'between:0,'.((int) $configuration['rows'] - 1)],
-                'selections.*.end_column' => ['required', 'integer', 'between:0,'.((int) $configuration['columns'] - 1)],
+                'answers' => ['required', 'array', 'size:'.$hiddenIndices->count()],
+                'answers.*' => ['required', 'numeric'],
             ]);
 
-            $selections = collect($validated['selections'])->map(function (array $selection): array {
-                $rowDistance = abs($selection['end_row'] - $selection['start_row']);
-                $columnDistance = abs($selection['end_column'] - $selection['start_column']);
+            $submittedIndices = collect(array_keys($validated['answers']))->map(fn ($index): int => (int) $index)->sort()->values();
 
-                if (! ($rowDistance === 0 || $columnDistance === 0 || $rowDistance === $columnDistance)) {
-                    throw ValidationException::withMessages([
-                        'selections' => 'Cada selección debe formar una línea horizontal, vertical o diagonal.',
-                    ]);
-                }
-
-                return array_map('intval', $selection);
-            });
-
-            if ($selections->map(fn (array $selection) => implode(':', $selection))->duplicates()->isNotEmpty()) {
-                throw ValidationException::withMessages(['selections' => 'No envíes la misma selección más de una vez.']);
+            if ($submittedIndices->all() !== $hiddenIndices->sort()->values()->all()) {
+                throw ValidationException::withMessages(['answers' => 'Completa todos los espacios ocultos de la secuencia.']);
             }
 
-            $correctWordIds = $selections
-                ->map(fn (array $selection) => $this->matchingWordId($selection, $configuration))
-                ->filter()
-                ->unique()
-                ->values();
-            $correctCount = $correctWordIds->count();
-            $total = count($configuration['words']);
+            $correctCount = $hiddenIndices->filter(
+                fn (int $index): bool => $this->numbersMatch($validated['answers'][$index], $attemptData['solution'][$index])
+            )->count();
+            $total = $hiddenIndices->count();
             $score = round(($correctCount / $total) * (float) $lockedAttempt->max_score, 2);
             $completedAt = now();
 
             $lockedAttempt->update([
                 'answers' => [
-                    ...$lockedAttempt->answers,
-                    'selections' => $selections->all(),
-                    'correct_word_ids' => $correctWordIds->all(),
+                    ...$attemptData,
+                    'responses' => $validated['answers'],
                     'correct_count' => $correctCount,
                 ],
                 'score' => $score,
@@ -138,11 +114,11 @@ class WordSearchController extends Controller
                 $activity,
                 $request->user()->id,
                 $score,
-                "Calificación automática: {$correctCount} de {$total} palabras encontradas."
+                "Calificación automática: {$correctCount} de {$total} valores correctos."
             );
         });
 
-        return redirect()->route('activities.word-search.attempts.result', $attempt)
+        return redirect()->route('activities.numeric-sequence.attempts.result', $attempt)
             ->with('success', 'Intento enviado correctamente.');
     }
 
@@ -150,12 +126,10 @@ class WordSearchController extends Controller
     {
         Gate::authorize('view', $attempt);
         $attempt->load(['activity.content', 'activity.teachingAssignment.subject', 'student']);
-        abort_unless($attempt->activity->tipo === 'sopa_letras', 404);
+        abort_unless($attempt->activity->tipo === 'secuencia', 404);
 
         if ($attempt->status === 'iniciado') {
-            $publicConfiguration = $this->publicConfiguration($attempt->activity->content->configuracion);
-
-            return view('word-search.attempt', compact('attempt', 'publicConfiguration'));
+            return view('numeric-sequences.attempt', compact('attempt'));
         }
 
         $showResult = (bool) ($attempt->answers['settings']['show_result_immediately'] ?? false)
@@ -165,17 +139,17 @@ class WordSearchController extends Controller
             ->where('status', 'completado')
             ->max('score');
         $correctCount = $showResult ? ($attempt->answers['correct_count'] ?? 0) : null;
-        $totalWords = $showResult ? count($attempt->activity->content->configuracion['words']) : null;
+        $totalValues = $showResult ? count($attempt->answers['hidden_indices']) : null;
 
-        return view('word-search.result', compact(
-            'attempt', 'showResult', 'bestScore', 'correctCount', 'totalWords'
+        return view('numeric-sequences.result', compact(
+            'attempt', 'showResult', 'bestScore', 'correctCount', 'totalValues'
         ));
     }
 
     public function attempts(Activity $activity): View
     {
         Gate::authorize('update', $activity);
-        abort_unless($activity->tipo === 'sopa_letras', 404);
+        abort_unless($activity->tipo === 'secuencia', 404);
         $activity->load(['teachingAssignment.subject', 'attempts.student']);
         $results = $activity->attempts
             ->groupBy('student_id')
@@ -191,13 +165,13 @@ class WordSearchController extends Controller
                 ];
             })->values();
 
-        return view('word-search.results', compact('activity', 'results'));
+        return view('numeric-sequences.results', compact('activity', 'results'));
     }
 
     private function authorizePlayable(Request $request, Activity $activity): array
     {
         Gate::authorize('submit', $activity);
-        abort_unless($activity->tipo === 'sopa_letras', 404);
+        abort_unless($activity->tipo === 'secuencia', 404);
         $activity->loadMissing('content');
         abort_unless($activity->content, 404);
 
@@ -208,44 +182,28 @@ class WordSearchController extends Controller
         return $activity->content->configuracion;
     }
 
-    private function publicConfiguration(array $configuration): array
+    private function attemptData(array $configuration): array
     {
+        $candidateIndices = range(1, count($configuration['values']) - 1);
+        shuffle($candidateIndices);
+        $hiddenIndices = array_slice($candidateIndices, 0, (int) $configuration['hidden_count']);
+        sort($hiddenIndices);
+
         return [
-            'grid' => $configuration['grid'],
-            'words' => collect($configuration['words'])
-                ->map(fn (array $word): array => Arr::only($word, ['id', 'original']))
-                ->values()
+            'display_values' => $configuration['values'],
+            'hidden_indices' => $hiddenIndices,
+            'solution' => collect($hiddenIndices)
+                ->mapWithKeys(fn (int $index): array => [$index => $configuration['values'][$index]])
                 ->all(),
-            'rows' => (int) $configuration['rows'],
-            'columns' => (int) $configuration['columns'],
-            'allow_reverse' => (bool) $configuration['allow_reverse'],
+            'responses' => [],
+            'settings' => [
+                'show_result_immediately' => (bool) $configuration['show_result_immediately'],
+            ],
         ];
     }
 
-    private function matchingWordId(array $selection, array $configuration): ?string
+    private function numbersMatch(string|int|float $submitted, string|int|float $expected): bool
     {
-        $rowStep = $selection['end_row'] <=> $selection['start_row'];
-        $columnStep = $selection['end_column'] <=> $selection['start_column'];
-        $length = max(
-            abs($selection['end_row'] - $selection['start_row']),
-            abs($selection['end_column'] - $selection['start_column'])
-        );
-        $selectedValue = '';
-
-        for ($index = 0; $index <= $length; $index++) {
-            $row = $selection['start_row'] + ($rowStep * $index);
-            $column = $selection['start_column'] + ($columnStep * $index);
-            $selectedValue .= $configuration['grid'][$row][$column];
-        }
-
-        $reversedValue = implode('', array_reverse(mb_str_split($selectedValue)));
-
-        foreach ($configuration['words'] as $word) {
-            if ($selectedValue === $word['normalized'] || $reversedValue === $word['normalized']) {
-                return $word['id'];
-            }
-        }
-
-        return null;
+        return abs((float) $submitted - (float) $expected) < 0.000000001;
     }
 }

@@ -5,6 +5,7 @@
         ['left' => '', 'right' => ''],
     ]);
     $initialWords = old('words', collect($savedConfiguration['words'] ?? [])->map(fn ($word) => ['text' => $word['original']])->all());
+    $initialSequence = old('sequence_values', implode(',', $savedConfiguration['values'] ?? []));
     while (count($initialWords) < 3) {
         $initialWords[] = ['text' => ''];
     }
@@ -66,7 +67,7 @@
         <div>
             <label for="tipo" class="mb-1 block text-sm font-medium dark:text-zinc-300">Tipo</label>
             <select id="tipo" name="tipo" x-model="activityType" required class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white">
-                @foreach (['tarea' => 'Tarea', 'archivo' => 'Archivo', 'cuestionario' => 'Cuestionario', 'matematicas' => 'Matemáticas', 'sopa_letras' => 'Sopa de letras', 'relacion_columnas' => 'Relación de columnas'] as $value => $label)
+                @foreach (['archivo' => 'Archivo', 'secuencia' => 'Secuencia numérica', 'sopa_letras' => 'Sopa de letras', 'relacion_columnas' => 'Relación de columnas'] as $value => $label)
                     <option value="{{ $value }}" @selected(old('tipo', $activity?->tipo ?? 'tarea') === $value)>{{ $label }}</option>
                 @endforeach
             </select>
@@ -161,6 +162,24 @@
         </div></fieldset>
         @error('word_search_directions')<p class="text-sm text-red-600">{{ $message }}</p>@enderror
         <label class="flex items-center gap-3 text-sm dark:text-zinc-300"><input type="hidden" name="show_result_immediately" value="0" x-bind:disabled="activityType !== 'sopa_letras'"><input type="checkbox" name="show_result_immediately" value="1" x-bind:disabled="activityType !== 'sopa_letras'" @checked(old('show_result_immediately', $savedConfiguration['show_result_immediately'] ?? true)) class="rounded border-zinc-300">Mostrar puntuación inmediatamente al estudiante</label>
+    </section>
+
+    <section x-show="activityType === 'secuencia'" x-cloak class="space-y-5 rounded-xl border border-emerald-200 bg-emerald-50 p-5 dark:border-emerald-900 dark:bg-emerald-950/30">
+        <div>
+            <h2 class="font-bold text-emerald-900 dark:text-emerald-100">Secuencia numérica</h2>
+            <p class="text-sm text-emerald-700 dark:text-emerald-300">Escribe entre 4 y 30 valores separados por comas. El primer valor siempre será visible.</p>
+        </div>
+        <div>
+            <label for="sequence_values" class="mb-1 block text-sm font-medium dark:text-zinc-300">Valores de la secuencia</label>
+            <input id="sequence_values" name="sequence_values" value="{{ $initialSequence }}" placeholder="1,2,3,4,5,6" x-bind:required="activityType === 'secuencia'" x-bind:disabled="activityType !== 'secuencia'" class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 font-mono dark:border-zinc-700 dark:bg-zinc-800 dark:text-white">
+            <p class="mt-1 text-xs text-zinc-500">Se permiten enteros, negativos y decimales; por ejemplo: 2, 4, 8, 16, 32.</p>
+            @error('sequence_values')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
+        </div>
+        <div class="grid gap-4 sm:grid-cols-3">
+            <div><label for="sequence_hidden_count" class="mb-1 block text-sm font-medium dark:text-zinc-300">Valores por ocultar</label><input id="sequence_hidden_count" name="sequence_hidden_count" type="number" min="1" max="29" value="{{ old('sequence_hidden_count', $savedConfiguration['hidden_count'] ?? 2) }}" x-bind:required="activityType === 'secuencia'" x-bind:disabled="activityType !== 'secuencia'" class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white">@error('sequence_hidden_count')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror</div>
+            <div><label for="sequence_max_attempts" class="mb-1 block text-sm font-medium dark:text-zinc-300">Intentos máximos</label><input id="sequence_max_attempts" name="max_attempts" type="number" min="1" max="10" value="{{ old('max_attempts', $savedConfiguration['max_attempts'] ?? 2) }}" x-bind:required="activityType === 'secuencia'" x-bind:disabled="activityType !== 'secuencia'" class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white">@error('max_attempts')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror</div>
+            <label class="flex items-center gap-3 text-sm dark:text-zinc-300"><input type="hidden" name="show_result_immediately" value="0" x-bind:disabled="activityType !== 'secuencia'"><input type="checkbox" name="show_result_immediately" value="1" x-bind:disabled="activityType !== 'secuencia'" @checked(old('show_result_immediately', $savedConfiguration['show_result_immediately'] ?? true)) class="rounded border-zinc-300">Mostrar resultado inmediatamente</label>
+        </div>
     </section>
 
     <div class="grid gap-5 md:grid-cols-2">

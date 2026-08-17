@@ -112,6 +112,41 @@ it('calcula la puntuación en el servidor e ignora la enviada por el cliente', f
         ->and(Submission::first()->calificacion)->toBe('3.33');
 });
 
+it('reconoce una palabra seleccionada desde cualquiera de sus extremos', function () {
+    $activity = createWordSearchActivity($this->assignment, $this->teacher, ['allow_reverse' => false]);
+    $attempt = startWordSearchAttempt($this, $activity, $this->student);
+    $placement = $activity->content->configuracion['placements'][0];
+
+    $this->actingAs($this->student)->post(route('activities.word-search.attempts.submit', $attempt), [
+        'selections' => [[
+            'start_row' => $placement['end_row'], 'start_column' => $placement['end_column'],
+            'end_row' => $placement['start_row'], 'end_column' => $placement['start_column'],
+        ]],
+    ])->assertRedirect();
+
+    expect($attempt->refresh()->answers['correct_count'])->toBe(1)
+        ->and($attempt->score)->toBe('3.33');
+});
+
+it('reconoce el valor correcto aunque aparezca fuera de la ubicación generada originalmente', function () {
+    $activity = createWordSearchActivity($this->assignment, $this->teacher);
+    $configuration = $activity->content->configuracion;
+    $grid = $configuration['grid'];
+    $grid[11] = [...mb_str_split('OXIGENO'), ...array_fill(0, 5, 'Z')];
+    $activity->content->update(['configuracion' => [...$configuration, 'grid' => $grid]]);
+    $attempt = startWordSearchAttempt($this, $activity, $this->student);
+
+    $this->actingAs($this->student)->post(route('activities.word-search.attempts.submit', $attempt), [
+        'selections' => [[
+            'start_row' => 11, 'start_column' => 0,
+            'end_row' => 11, 'end_column' => 6,
+        ]],
+    ])->assertRedirect();
+
+    expect($attempt->refresh()->answers['correct_count'])->toBe(1)
+        ->and($attempt->score)->toBe('3.33');
+});
+
 it('rechaza coordenadas fuera de la cuadrícula y selecciones no rectas', function (array $selection) {
     $activity = createWordSearchActivity($this->assignment, $this->teacher);
     $attempt = startWordSearchAttempt($this, $activity, $this->student);

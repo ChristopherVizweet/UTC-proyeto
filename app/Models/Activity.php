@@ -14,7 +14,7 @@ class Activity extends Model
     /** @use HasFactory<ActivityFactory> */
     use HasFactory;
 
-    public const TYPES = ['tarea', 'archivo', 'cuestionario', 'matematicas', 'sopa_letras', 'relacion_columnas'];
+    public const TYPES = ['tarea', 'archivo', 'cuestionario', 'matematicas', 'secuencia', 'sopa_letras', 'relacion_columnas'];
 
     public const STATUSES = ['borrador', 'publicada', 'cerrada'];
 

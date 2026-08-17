@@ -4,6 +4,7 @@ use App\Http\Controllers\AcademicPeriodController;
 use App\Http\Controllers\ActivityController;
 use App\Http\Controllers\EnrollmentController;
 use App\Http\Controllers\InteractiveActivityController;
+use App\Http\Controllers\NumericSequenceController;
 use App\Http\Controllers\SchoolGradeController;
 use App\Http\Controllers\SchoolGroupController;
 use App\Http\Controllers\SubjectController;
@@ -23,6 +24,17 @@ Route::view('/dashboard', 'dashboard')
     ->name('dashboard');
 
 Route::middleware('auth')->group(function () {
+    Route::get('activities/{activity}/numeric-sequence', [NumericSequenceController::class, 'play'])
+        ->name('activities.numeric-sequence.play');
+    Route::post('activities/{activity}/numeric-sequence/attempts', [NumericSequenceController::class, 'startAttempt'])
+        ->name('activities.numeric-sequence.attempts.start');
+    Route::get('activities/{activity}/numeric-sequence/attempts', [NumericSequenceController::class, 'attempts'])
+        ->name('activities.numeric-sequence.attempts.index');
+    Route::post('numeric-sequence-attempts/{attempt}/submit', [NumericSequenceController::class, 'submitAttempt'])
+        ->name('activities.numeric-sequence.attempts.submit');
+    Route::get('numeric-sequence-attempts/{attempt}/result', [NumericSequenceController::class, 'result'])
+        ->name('activities.numeric-sequence.attempts.result');
+
     Route::get('activities/{activity}/word-search', [WordSearchController::class, 'play'])
         ->name('activities.word-search.play');
     Route::post('activities/{activity}/word-search/attempts', [WordSearchController::class, 'startAttempt'])

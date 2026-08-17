@@ -9,6 +9,8 @@ class WordSearchGenerator
 {
     private const ALPHABET = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'Ñ', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
 
+    private const DIGITS = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+
     private const VECTORS = [
         'horizontal' => [0, 1],
         'vertical' => [1, 0],
@@ -23,7 +25,7 @@ class WordSearchGenerator
             'Á' => 'A', 'É' => 'E', 'Í' => 'I', 'Ó' => 'O', 'Ú' => 'U', 'Ü' => 'U',
         ]);
 
-        return preg_replace('/[^A-ZÑ]/u', '', $normalized) ?? '';
+        return preg_replace('/[^A-ZÑ0-9]/u', '', $normalized) ?? '';
     }
 
     public function generate(array $words, int $rows, int $columns, array $directions, bool $allowReverse): array
@@ -40,7 +42,7 @@ class WordSearchGenerator
                 $normalized = $this->normalize($original);
 
                 if ($normalized === '') {
-                    throw ValidationException::withMessages(['words' => 'Las palabras deben contener letras válidas.']);
+                    throw ValidationException::withMessages(['words' => 'Las palabras deben contener letras o números válidos.']);
                 }
 
                 if (Str::length($normalized) > 20) {
@@ -100,9 +102,11 @@ class WordSearchGenerator
             $placements[] = $placement['placement'];
         }
 
+        $fillerCharacters = $this->fillerCharacters($words);
+
         for ($row = 0; $row < $rows; $row++) {
             for ($column = 0; $column < $columns; $column++) {
-                $grid[$row][$column] ??= self::ALPHABET[random_int(0, count(self::ALPHABET) - 1)];
+                $grid[$row][$column] ??= $fillerCharacters[random_int(0, count($fillerCharacters) - 1)];
             }
         }
 
@@ -166,5 +170,20 @@ class WordSearchGenerator
         }
 
         return null;
+    }
+
+    private function fillerCharacters(array $words): array
+    {
+        $normalizedWords = collect($words)->pluck('normalized');
+
+        if ($normalizedWords->every(fn (string $word): bool => preg_match('/^[0-9]+$/', $word) === 1)) {
+            return self::DIGITS;
+        }
+
+        if ($normalizedWords->contains(fn (string $word): bool => preg_match('/[0-9]/', $word) === 1)) {
+            return [...self::ALPHABET, ...self::DIGITS];
+        }
+
+        return self::ALPHABET;
     }
 }
