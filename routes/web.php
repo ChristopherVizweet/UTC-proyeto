@@ -3,6 +3,7 @@
 use App\Http\Controllers\AcademicPeriodController;
 use App\Http\Controllers\ActivityController;
 use App\Http\Controllers\CrosswordController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EnrollmentController;
 use App\Http\Controllers\HayAhiAyController;
 use App\Http\Controllers\InteractiveActivityController;
@@ -22,7 +23,7 @@ Route::view('/', 'welcome')->name('home');
 /*Route::middleware(['auth', 'verified'])->group(function () {
     Route::view('dashboard', 'dashboard')->name('dashboard');
 });*/
-Route::view('/dashboard', 'dashboard')
+Route::get('/dashboard', DashboardController::class)
     ->middleware('auth')
     ->name('dashboard');
 
